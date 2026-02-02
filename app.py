@@ -227,6 +227,45 @@ HTML_TEMPLATE = '''
       }
     }
 
+    /* Animação de entrada da toupeira - GPU optimized */
+    @keyframes moleEntrance {
+      0% {
+        transform: translateY(120px) scale(0) rotateZ(0deg);
+        opacity: 0;
+      }
+      60% {
+        transform: translateY(-10px) scale(1.1) rotateZ(360deg);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(0) scale(1) rotateZ(360deg);
+        opacity: 1;
+      }
+    }
+
+    /* Sistema de partículas */
+    @keyframes particleExplode {
+      0% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: translate(var(--dx), var(--dy)) scale(0);
+        opacity: 0;
+      }
+    }
+
+    .particle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 1000;
+      animation: particleExplode 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      will-change: transform, opacity;
+    }
+
     .mole {
       width: 80px;
       height: 80px;
@@ -243,10 +282,12 @@ HTML_TEMPLATE = '''
       transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
       box-shadow: 0 0 20px #00ffff, 0 0 40px #ff00ff;
       border: 2px solid #00ff00;
+      will-change: transform, opacity;
     }
 
     .mole-hole.show .mole {
       opacity: 1;
+      animation: moleEntrance 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
       transform: translateY(0) scale(1) rotateZ(360deg);
     }
 
@@ -595,22 +636,79 @@ HTML_TEMPLATE = '''
       }
     }
 
+    /**
+     * Mostra toupeira em posição aleatória - Otimizado para performance
+     * Usa cache de holes e evita manipulação desnecessária do DOM
+     */
+    const holesCache = [];
+    
     function showRandomMole() {
       if (!gameState.isRunning) return;
       
-      const holes = document.querySelectorAll('.mole-hole');
-      const randomHole = holes[Math.floor(Math.random() * holes.length)];
+      // Cache holes na primeira execução
+      if (holesCache.length === 0) {
+        holesCache.push(...document.querySelectorAll('.mole-hole'));
+      }
+      
+      // Seleciona hole aleatório usando bitwise para melhor performance
+      const randomIndex = (Math.random() * holesCache.length) | 0;
+      const randomHole = holesCache[randomIndex];
       
       randomHole.classList.add('show');
       
       const timeoutId = setTimeout(() => {
         randomHole.classList.remove('show');
         if (gameState.isRunning) {
-          setTimeout(showRandomMole, Math.random() * 300 + 100);
+          // Usa requestIdleCallback para melhor performance se disponível
+          const scheduleNext = window.requestIdleCallback || setTimeout;
+          scheduleNext(() => showRandomMole(), Math.random() * 300 + 100);
         }
       }, gameState.moleShowTime);
       
       gameState.moleIntervals.push(timeoutId);
+    }
+
+    /**
+     * Cria explosão de partículas neon ao acertar toupeira
+     * @param {number} x - Posição X do clique
+     * @param {number} y - Posição Y do clique
+     */
+    function createParticles(x, y) {
+      const colors = ['#00ffff', '#ff00ff', '#00ff00'];
+      const particleCount = 12;
+      const fragment = document.createDocumentFragment();
+      
+      for (let i = 0; i < particleCount; i++) {
+        const particle = document.createElement('div');
+        particle.className = 'particle';
+        
+        // Posicionamento
+        particle.style.left = x + 'px';
+        particle.style.top = y + 'px';
+        
+        // Cor aleatória neon
+        const color = colors[(Math.random() * colors.length) | 0];
+        particle.style.background = color;
+        particle.style.boxShadow = `0 0 10px ${color}, 0 0 20px ${color}`;
+        
+        // Direção radial
+        const angle = (Math.PI * 2 * i) / particleCount;
+        const velocity = 80 + Math.random() * 40;
+        const dx = Math.cos(angle) * velocity;
+        const dy = Math.sin(angle) * velocity;
+        
+        particle.style.setProperty('--dx', dx + 'px');
+        particle.style.setProperty('--dy', dy + 'px');
+        
+        fragment.appendChild(particle);
+      }
+      
+      document.body.appendChild(fragment);
+      
+      // Remove partículas após animação
+      setTimeout(() => {
+        document.querySelectorAll('.particle').forEach(p => p.remove());
+      }, 600);
     }
 
     function whackMole(e) {
@@ -618,6 +716,12 @@ HTML_TEMPLATE = '''
       
       const hole = e.currentTarget;
       if (!hole.classList.contains('show')) return;
+      
+      // Cria partículas na posição do clique
+      const rect = hole.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      createParticles(x, y);
       
       hole.classList.add('active');
       hole.classList.remove('show');
