@@ -1,0 +1,226 @@
+name: CI - Cyber Mole
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Lint e validação de código
+  lint:
+    name: 🔍 Lint e Qualidade
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 📦 Instalar dependências
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pylint flake8 black
+    
+    - name: 🎨 Verificar formatação (Black)
+      run: black --check app.py
+    
+    - name: 🔍 Análise estática (Pylint)
+      run: pylint app.py --disable=C0111,R0903
+      continue-on-error: true
+    
+    - name: ✅ Verificar PEP8 (Flake8)
+      run: flake8 app.py --max-line-length=120 --ignore=E501,W503
+      continue-on-error: true
+
+  # Job 2: Testes automatizados
+  test:
+    name: 🧪 Testes
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.9', '3.10', '3.11']
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+    
+    - name: 📦 Instalar dependências
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov pytest-flask
+    
+    - name: 🧪 Executar testes
+      run: |
+        # Criar testes básicos se não existirem
+        mkdir -p tests
+        echo "import pytest
+        from app import app
+
+        @pytest.fixture
+        def client():
+            app.config['TESTING'] = True
+            with app.test_client() as client:
+                yield client
+
+        def test_home_page(client):
+            '''Testa se página principal carrega'''
+            rv = client.get('/')
+            assert rv.status_code == 200
+            assert b'CYBER MOLE' in rv.data
+
+        def test_api_score(client):
+            '''Testa endpoint de score'''
+            rv = client.get('/api/score/test-session')
+            assert rv.status_code == 200
+            json_data = rv.get_json()
+            assert 'score' in json_data
+        " > tests/test_app.py
+        
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term
+    
+    - name: 📊 Upload coverage para Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: ./coverage.xml
+        flags: unittests
+        name: codecov-${{ matrix.python-version }}
+      continue-on-error: true
+
+  # Job 3: Security scan
+  security:
+    name: 🔒 Security Scan
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: 📦 Instalar dependências
+      run: |
+        pip install safety bandit
+    
+    - name: 🔍 Verificar vulnerabilidades (Safety)
+      run: safety check --json
+      continue-on-error: true
+    
+    - name: 🔒 Análise de segurança (Bandit)
+      run: bandit -r app.py -f json
+      continue-on-error: true
+
+  # Job 4: Build e validação
+  build:
+    name: 🏗️ Build e Validação
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+    
+    - name: 📦 Instalar dependências
+      run: |
+        pip install -r requirements.txt
+    
+    - name: 🚀 Testar inicialização do servidor
+      run: |
+        timeout 10s python app.py || code=$?
+        if [ $code -eq 124 ]; then
+          echo "✅ Servidor iniciou com sucesso (timeout esperado)"
+          exit 0
+        else
+          echo "❌ Erro ao iniciar servidor"
+          exit 1
+        fi
+    
+    - name: 📦 Criar artefato de build
+      run: |
+        mkdir -p dist
+        cp app.py requirements.txt README.md dist/
+        tar -czf cyber-mole-${{ github.sha }}.tar.gz dist/
+    
+    - name: 📤 Upload artefato
+      uses: actions/upload-artifact@v4
+      with:
+        name: cyber-mole-build
+        path: cyber-mole-*.tar.gz
+        retention-days: 30
+
+  # Job 5: Lighthouse CI (Performance)
+  lighthouse:
+    name: 🚦 Lighthouse Performance
+    runs-on: ubuntu-latest
+    needs: build
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: 📦 Instalar dependências
+      run: pip install -r requirements.txt
+    
+    - name: 🚀 Iniciar servidor
+      run: python app.py &
+      
+    - name: ⏳ Aguardar servidor
+      run: |
+        timeout 30 bash -c 'until curl -f http://localhost:5000; do sleep 1; done'
+    
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: 🚦 Executar Lighthouse CI
+      run: |
+        npm install -g @lhci/cli
+        lhci autorun --config=.lighthouserc.json || echo "Lighthouse config não encontrado"
+      continue-on-error: true
+
+  # Job 6: Notification
+  notify:
+    name: 📢 Notificação
+    runs-on: ubuntu-latest
+    needs: [lint, test, security, build]
+    if: always()
+    
+    steps:
+    - name: 📊 Status do Pipeline
+      run: |
+        echo "Pipeline finalizado!"
+        echo "Lint: ${{ needs.lint.result }}"
+        echo "Tests: ${{ needs.test.result }}"
+        echo "Security: ${{ needs.security.result }}"
+        echo "Build: ${{ needs.build.result }}"

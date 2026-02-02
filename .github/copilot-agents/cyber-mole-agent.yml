@@ -230,3 +230,14 @@ priorities:
   3: "Performance 60fps"
   4: "Responsividade mobile"
   5: "Features extras"
+
+# Configuração do agent
+agent_config:
+  github.copilot.advanced: {
+    agents: [
+      {
+        "name": "cyber-mole",
+        "config": ".github/copilot-agents/cyber-mole-agent.yml"
+      }
+    ]
+  }

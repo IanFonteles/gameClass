@@ -1,0 +1,257 @@
+name: CD - Deploy Cyber Mole
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Ambiente de deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  # Job 1: Deploy para Heroku (Staging)
+  deploy-staging:
+    name: 🚀 Deploy Staging (Heroku)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: staging
+      url: https://cyber-mole-staging.herokuapp.com
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: 📦 Instalar Heroku CLI
+      run: |
+        curl https://cli-assets.heroku.com/install.sh | sh
+    
+    - name: 🔐 Login Heroku
+      env:
+        HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      run: |
+        echo "HEROKU_API_KEY=${HEROKU_API_KEY}" >> $GITHUB_ENV
+    
+    - name: 🚀 Deploy para Heroku
+      run: |
+        heroku git:remote -a cyber-mole-staging
+        git push heroku main
+    
+    - name: 🏃 Executar migrations (se houver)
+      run: |
+        heroku run python -c "print('App deployed successfully!')" -a cyber-mole-staging
+    
+    - name: ✅ Verificar deploy
+      run: |
+        curl -f https://cyber-mole-staging.herokuapp.com || exit 1
+
+  # Job 2: Deploy para Azure App Service (Production)
+  deploy-production:
+    name: 🌟 Deploy Production (Azure)
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: production
+      url: https://cyber-mole.azurewebsites.net
+    needs: []
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: 📦 Instalar dependências
+      run: |
+        pip install -r requirements.txt
+    
+    - name: 🔐 Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: 🚀 Deploy para Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'cyber-mole'
+        package: .
+    
+    - name: ✅ Verificar deploy
+      run: |
+        sleep 10
+        curl -f https://cyber-mole.azurewebsites.net || exit 1
+
+  # Job 3: Deploy para GitHub Pages (Static)
+  deploy-pages:
+    name: 📄 Deploy GitHub Pages
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 📦 Criar documentação estática
+      run: |
+        mkdir -p public
+        cp README.md public/
+        cp -r docs/* public/ 2>/dev/null || true
+        
+        # Criar index.html redirecionando para app
+        cat > public/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Cyber Mole - Redirecting...</title>
+          <meta http-equiv="refresh" content="0; url=https://cyber-mole.azurewebsites.net">
+        </head>
+        <body>
+          <h1>🤖 CYBER MOLE</h1>
+          <p>Redirecionando para o jogo...</p>
+          <a href="https://cyber-mole.azurewebsites.net">Clique aqui se não for redirecionado</a>
+        </body>
+        </html>
+        EOF
+    
+    - name: 📤 Upload para Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: public
+    
+    - name: 🚀 Deploy para Pages
+      uses: actions/deploy-pages@v4
+
+  # Job 4: Docker Build e Push
+  docker:
+    name: 🐳 Build Docker Image
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+    
+    - name: 🔐 Login Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    
+    - name: 📦 Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ secrets.DOCKER_USERNAME }}/cyber-mole
+        tags: |
+          type=ref,event=tag
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+    
+    - name: 🏗️ Build e Push
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  # Job 5: Criar Release
+  release:
+    name: 📦 Criar GitHub Release
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [deploy-production, deploy-pages, docker]
+    permissions:
+      contents: write
+    
+    steps:
+    - name: 📥 Checkout código
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: 📝 Gerar Changelog
+      id: changelog
+      run: |
+        # Gera changelog automático
+        echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+        git log $(git describe --tags --abbrev=0 HEAD^)..HEAD --pretty=format:"- %s (%h)" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+    
+    - name: 📦 Criar arquivos de release
+      run: |
+        mkdir -p release
+        cp app.py requirements.txt README.md release/
+        tar -czf cyber-mole-${{ github.ref_name }}.tar.gz release/
+        zip -r cyber-mole-${{ github.ref_name }}.zip release/
+    
+    - name: 🎉 Criar Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Cyber Mole ${{ github.ref_name }}
+        body: |
+          ## 🤖 Cyber Mole ${{ github.ref_name }}
+          
+          ### 🎮 O que há de novo:
+          ${{ steps.changelog.outputs.CHANGELOG }}
+          
+          ### 📥 Downloads:
+          - **Código Fonte**: [tar.gz](https://github.com/${{ github.repository }}/archive/${{ github.ref_name }}.tar.gz) | [zip](https://github.com/${{ github.repository }}/archive/${{ github.ref_name }}.zip)
+          - **Docker**: `docker pull ${{ secrets.DOCKER_USERNAME }}/cyber-mole:${{ github.ref_name }}`
+          
+          ### 🚀 Deploy:
+          - **Production**: https://cyber-mole.azurewebsites.net
+          - **Docs**: https://${{ github.repository_owner }}.github.io/cyber-mole
+          
+          ---
+          **Instalação Rápida:**
+          ```bash
+          pip install -r requirements.txt
+          python app.py
+          ```
+        files: |
+          cyber-mole-${{ github.ref_name }}.tar.gz
+          cyber-mole-${{ github.ref_name }}.zip
+        draft: false
+        prerelease: false
+
+  # Job 6: Notificação de Deploy
+  notify-deploy:
+    name: 📢 Notificar Deploy
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production, release]
+    if: always()
+    
+    steps:
+    - name: 📊 Status do Deploy
+      run: |
+        echo "🚀 Deploy finalizado!"
+        echo "Staging: ${{ needs.deploy-staging.result }}"
+        echo "Production: ${{ needs.deploy-production.result }}"
+        echo "Release: ${{ needs.release.result }}"
