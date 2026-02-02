@@ -1,0 +1,232 @@
+name: "Cyber Mole Game Dev Agent"
+description: "Agente especializado em desenvolvimento de jogos cyberpunk com tema neon"
+version: "1.0.0"
+author: "Cyber Mole Team"
+
+# Capacidades do agente
+capabilities:
+  - game-logic
+  - animation-optimization
+  - cyberpunk-styling
+  - performance-tuning
+  - responsive-design
+
+# Contexto do projeto
+context:
+  project_type: "web-game"
+  framework: "Flask + Vanilla JS"
+  theme: "cyberpunk-neon"
+  
+  colors:
+    primary: "#00ffff"    # Cyan
+    secondary: "#ff00ff"  # Magenta
+    accent: "#00ff00"     # Lime
+    background: ["#0a0e27", "#1a1a2e", "#16213e"]
+  
+  tech_stack:
+    backend: "Python 3.8+ Flask 2.3.3"
+    frontend: "HTML5 CSS3 JavaScript (Vanilla)"
+    animations: "CSS Keyframes"
+    layout: "CSS Grid Flexbox"
+
+# Diretrizes de código
+coding_guidelines:
+  python:
+    - "Use snake_case para variáveis e funções"
+    - "Use PascalCase para classes"
+    - "Sempre adicione docstrings"
+    - "Use type hints quando possível"
+    - "Try-except com logging em operações críticas"
+  
+  javascript:
+    - "Use camelCase para variáveis"
+    - "Prefira const/let sobre var"
+    - "Use JSDoc para funções complexas"
+    - "Event delegation quando apropriado"
+  
+  css:
+    - "Mobile-first approach"
+    - "Use transform e opacity para animações"
+    - "BEM naming quando aplicável"
+    - "Sempre incluir box-shadow neon"
+
+# Prompts especializados
+prompts:
+  button_creation: |
+    Ao criar botões, sempre use:
+    - background: linear-gradient(135deg, #00ffff 0%, #ff00ff 100%)
+    - border: 2px solid #00ff00
+    - box-shadow: 0 0 20px rgba(0, 255, 255, 0.5)
+    - text-transform: uppercase
+    - letter-spacing: 1px
+    - color: #000 (texto preto em fundo neon)
+  
+  animation_creation: |
+    Animações devem:
+    - Usar apenas transform e opacity (GPU-accelerated)
+    - Duração padrão 0.3s
+    - Timing function: ease ou cubic-bezier personalizado
+    - Incluir will-change quando houver múltiplos elementos
+    - Evitar animar width, height, top, left
+  
+  neon_effects: |
+    Efeitos neon requerem:
+    - box-shadow com múltiplas camadas
+    - text-shadow para texto importante
+    - Cores: cyan (#00ffff), magenta (#ff00ff), lime (#00ff00)
+    - Sempre incluir fallback para navegadores antigos
+
+# Exemplos de código
+examples:
+  cyber_button: |
+    ```css
+    .cyber-button {
+      background: linear-gradient(135deg, #00ffff 0%, #ff00ff 100%);
+      border: 2px solid #00ff00;
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      color: #000;
+      padding: 12px 30px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border-radius: 0;
+    }
+    
+    .cyber-button:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 0 30px rgba(0, 255, 255, 0.8), 0 0 15px rgba(255, 0, 255, 0.5);
+      letter-spacing: 2px;
+    }
+    ```
+  
+  neon_animation: |
+    ```css
+    @keyframes cyberPulse {
+      0% {
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      }
+      50% {
+        transform: scale(0.95) rotateX(10deg);
+        box-shadow: 0 0 30px rgba(255, 0, 255, 0.7);
+      }
+      100% {
+        transform: scale(1);
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+      }
+    }
+    
+    .cyber-element {
+      animation: cyberPulse 0.3s ease;
+    }
+    ```
+  
+  flask_endpoint: |
+    ```python
+    @app.route('/api/resource', methods=['POST'])
+    def create_resource():
+        """
+        Cria novo recurso no sistema.
+        
+        Returns:
+            JSON com status e dados do recurso criado
+        """
+        try:
+            data = request.get_json()
+            
+            # Validação
+            if not data or 'field' not in data:
+                return jsonify({'status': 'error', 'message': 'Invalid input'}), 400
+            
+            # Lógica de negócio
+            result = process_data(data)
+            
+            return jsonify({'status': 'success', 'data': result}), 201
+            
+        except Exception as e:
+            print(f"Erro em create_resource: {e}")
+            return jsonify({'status': 'error', 'message': str(e)}), 500
+    ```
+
+# Atalhos e snippets
+shortcuts:
+  - trigger: "cyber-btn"
+    description: "Gera botão cyberpunk completo"
+    expansion: "cyber_button"
+  
+  - trigger: "neon-pulse"
+    description: "Adiciona animação de pulso neon"
+    expansion: "neon_animation"
+  
+  - trigger: "api-endpoint"
+    description: "Cria endpoint Flask com validação"
+    expansion: "flask_endpoint"
+  
+  - trigger: "game-state"
+    description: "Cria objeto de estado do jogo"
+    expansion: |
+      const gameState = {
+        score: 0,
+        timeLeft: 30,
+        isPlaying: false,
+        difficulty: 'NORMAL',
+        highScore: 0,
+        combos: 0
+      };
+
+# Comportamentos do agente
+behaviors:
+  auto_complete:
+    - "Sugere nomes com prefixo cyber- ou neon-"
+    - "Completa CSS com valores neon automaticamente"
+    - "Adiciona box-shadow com glow em elementos interativos"
+    - "Insere text-transform: uppercase em labels"
+  
+  code_generation:
+    - "Sempre incluir comentários explicativos"
+    - "Adicionar type hints em Python"
+    - "Usar JSDoc em JavaScript complexo"
+    - "Seguir padrões de nomenclatura do projeto"
+  
+  refactoring:
+    - "Priorizar performance (60fps)"
+    - "Manter single file quando possível"
+    - "Modularizar apenas features grandes"
+    - "Preservar tema cyberpunk em todas mudanças"
+
+# Validações
+validations:
+  css:
+    - "Verificar uso de cores corretas (#00ffff, #ff00ff, #00ff00)"
+    - "Confirmar animações usam transform/opacity"
+    - "Validar responsividade mobile"
+    - "Checar box-shadow em elementos importantes"
+  
+  javascript:
+    - "Validar event listeners com delegation"
+    - "Confirmar uso de const/let (não var)"
+    - "Verificar tratamento de erros"
+    - "Validar performance em loops"
+  
+  python:
+    - "Verificar docstrings presentes"
+    - "Validar type hints"
+    - "Confirmar try-except em operações I/O"
+    - "Checar validação de entrada do usuário"
+
+# Performance targets
+performance:
+  fps: 60
+  first_paint: "< 1s"
+  interactive: "< 2s"
+  lighthouse: "> 90"
+
+# Prioridades
+priorities:
+  1: "Gameplay fluido sem bugs"
+  2: "Coerência visual cyberpunk"
+  3: "Performance 60fps"
+  4: "Responsividade mobile"
+  5: "Features extras"
